@@ -1,8 +1,15 @@
-let port;
-let reader;
-let inputDone;
-let inputStream;
+let port; // Serial Port
+let reader; // Serial Reader
+let bleDevice; // BLE Device
+let rxCharacteristic; // BLE RX
+let txCharacteristic; // BLE TX
+let connectionMode = null; // 'serial' or 'ble'
 
+const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+// UI Elements
 const connectBtn = document.getElementById("connectBtn");
 const calibBtn = document.getElementById("calibBtn");
 const diagBtn = document.getElementById("diagBtn");
@@ -17,12 +24,10 @@ const log = document.getElementById("log");
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
 const clutchBar = document.getElementById("clutchBar");
-
 const gasVal = document.getElementById("gasVal");
 const brakeVal = document.getElementById("brakeVal");
 const clutchVal = document.getElementById("clutchVal");
 
-// Elementos de calibración
 const gMin = document.getElementById("g-min");
 const gMax = document.getElementById("g-max");
 const bMax = document.getElementById("b-max");
@@ -30,7 +35,6 @@ const bScale = document.getElementById("b-scale");
 const cMin = document.getElementById("c-min");
 const cMax = document.getElementById("c-max");
 
-// Deazones UI elements
 const gDZL = document.getElementById("g-dzl");
 const gDZH = document.getElementById("g-dzh");
 const bDZL = document.getElementById("b-dzl");
@@ -38,111 +42,160 @@ const bDZH = document.getElementById("b-dzh");
 const cDZL = document.getElementById("c-dzl");
 const cDZH = document.getElementById("c-dzh");
 
-async function connect() {
+// --- Connection Logic ---
+
+async function connectSerial() {
   try {
     port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
-
-    statusDot.classList.add("connected");
-    statusText.innerText = "SYSTEM ONLINE";
-    connectBtn.innerText = "TERMINATE CONNECTION";
-    calibBtn.disabled = false;
-    diagBtn.disabled = false;
-    monitorBtn.disabled = false;
-    advancedToggle.disabled = false;
-    resetBtn.disabled = false;
-
-    appendLog("Conectado exitosamente");
-
-    readLoop();
+    connectionMode = "serial";
+    onConnected("SERIAL ONLINE");
+    readLoopSerial();
   } catch (e) {
-    let errorMsg = e.message;
-    if (e.name === "NetworkError") {
-      errorMsg =
-        "El puerto está siendo usado por otra aplicación (ej: Monitor Serie de Arduino IDE). Ciérrala e intenta de nuevo.";
-    } else if (e.name === "SecurityError") {
-      errorMsg = "Permiso denegado por el navegador.";
-    }
-    appendLog("Error de conexión: " + errorMsg);
-    console.error(e);
+    appendLog("Serial Error: " + e.message);
   }
 }
 
-async function readLoop() {
-  const textDecoder = new TextDecoderStream();
-  inputDone = port.readable.pipeTo(textDecoder.writable);
-  inputStream = textDecoder.readable;
-  reader = inputStream.getReader();
+async function connectBLE() {
+  try {
+    appendLog("Requesting Bluetooth Device...");
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: "PedalMaster BLE" }],
+      optionalServices: [SERVICE_UUID],
+    });
 
+    bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
+
+    appendLog("Connecting to BLE...");
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    rxCharacteristic = await service.getCharacteristic(RX_UUID);
+    txCharacteristic = await service.getCharacteristic(TX_UUID);
+
+    await txCharacteristic.startNotifications();
+    txCharacteristic.addEventListener(
+      "characteristicvaluechanged",
+      handleBLENotifications
+    );
+
+    connectionMode = "ble";
+    onConnected("BLE ONLINE");
+    sendCommand("m"); // Request initial data
+  } catch (e) {
+    appendLog("BLE Error: " + e.message);
+  }
+}
+
+function onConnected(text) {
+  statusDot.classList.add("connected");
+  statusText.innerText = text;
+  connectBtn.innerText = "DISCONNECT";
+  setUIEnabled(true);
+  appendLog("Connected via " + connectionMode.toUpperCase());
+}
+
+function onDisconnected() {
+  appendLog("Disconnected.");
+  window.location.reload();
+}
+
+function setUIEnabled(enabled) {
+  calibBtn.disabled = !enabled;
+  diagBtn.disabled = !enabled;
+  monitorBtn.disabled = !enabled;
+  advancedToggle.disabled = !enabled;
+  resetBtn.disabled = !enabled;
+}
+
+// --- Data Receivers ---
+
+async function readLoopSerial() {
+  const textDecoder = new TextDecoderStream();
+  port.readable.pipeTo(textDecoder.writable);
+  const reader = textDecoder.readable.getReader();
   let buffer = "";
 
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-
-      buffer += value;
-
-      // Procesar líneas completas
-      let lines = buffer.split("\n");
-      buffer = lines.pop(); // Mantener la última línea incompleta
-
-      for (let line of lines) {
-        line = line.trim();
-        if (line.startsWith("{")) {
-          try {
-            const data = JSON.parse(line);
-            updateUI(data);
-          } catch (e) {
-            // Ignorar errores de parseo parcial
-          }
-        } else if (line.length > 0) {
-          appendLog(line);
-        }
-      }
+      processData(value, buffer, (newBuf) => (buffer = newBuf));
     }
   } catch (e) {
-    appendLog("Error de lectura: " + e.message);
-  } finally {
-    reader.releaseLock();
+    appendLog("Read Error: " + e.message);
   }
 }
 
+let bleBuffer = "";
+function handleBLENotifications(event) {
+  const value = new TextDecoder().decode(event.target.value);
+  processData(value, bleBuffer, (newBuf) => (bleBuffer = newBuf));
+}
+
+function processData(chunk, bufferRef, setBuffer) {
+  let fullBuffer = bufferRef + chunk;
+  let lines = fullBuffer.split("\n");
+  setBuffer(lines.pop());
+
+  for (let line of lines) {
+    line = line.trim();
+    if (line.startsWith("{")) {
+      try {
+        const data = JSON.parse(line);
+        updateUI(data);
+      } catch (e) {}
+    } else if (line.length > 0) {
+      appendLog(line);
+    }
+  }
+}
+
+// --- UI Updates ---
+
 function updateUI(data) {
-  // Escalar valores (Arduino envía 0-4095 para gas/clutch, 0-16384 para brake)
-  const gasPct = (data.g / 4095) * 100;
-  const brakePct = (data.b / 16384) * 100;
-  const clutchPct = (data.c / 4095) * 100;
+  if (data.g !== undefined) {
+    const gasPct = (data.g / 4095) * 100;
+    gasBar.style.width = `${gasPct}%`;
+    gasVal.innerText = `${Math.round(gasPct)}%`;
+  }
+  if (data.b !== undefined) {
+    const brakePct = (data.b / 16384) * 100;
+    brakeBar.style.width = `${brakePct}%`;
+    brakeVal.innerText = `${Math.round(brakePct)}%`;
+  }
+  if (data.c !== undefined) {
+    const clutchPct = (data.c / 4095) * 100;
+    clutchBar.style.width = `${clutchPct}%`;
+    clutchVal.innerText = `${Math.round(clutchPct)}%`;
+  }
 
-  gasBar.style.width = `${gasPct}%`;
-  gasVal.innerText = `${Math.round(gasPct)}%`;
-
-  brakeBar.style.width = `${brakePct}%`;
-  brakeVal.innerText = `${Math.round(brakePct)}%`;
-
-  clutchBar.style.width = `${clutchPct}%`;
-  clutchVal.innerText = `${Math.round(clutchPct)}%`;
-
-  // Datos de calibración
   if (data.cal) {
     gMin.innerText = data.cal.gmin;
     gMax.innerText = data.cal.gmax;
     bMax.innerText = data.cal.bmax.toFixed(0);
-    if (data.cal.bmax > 0) {
+    if (data.cal.bmax > 0)
       bScale.innerText = (16384 / data.cal.bmax).toFixed(4);
-    } else {
-      bScale.innerText = "inf";
-    }
     cMin.innerText = data.cal.cmin;
     cMax.innerText = data.cal.cmax;
 
-    // Deadzones (solo actualizar si no tienen el foco para no molestar al usuario)
     if (document.activeElement !== gDZL) gDZL.value = data.cal.gdzl;
     if (document.activeElement !== gDZH) gDZH.value = data.cal.gdzh;
     if (document.activeElement !== bDZL) bDZL.value = data.cal.bdzl;
     if (document.activeElement !== bDZH) bDZH.value = data.cal.bdzh;
     if (document.activeElement !== cDZL) cDZL.value = data.cal.cdzl;
     if (document.activeElement !== cDZH) cDZH.value = data.cal.cdzh;
+  }
+}
+
+// --- Outgoing Commands ---
+
+async function sendCommand(cmd) {
+  if (connectionMode === "serial" && port) {
+    const writer = port.writable.getWriter();
+    await writer.write(new TextEncoder().encode(cmd + "\n"));
+    writer.releaseLock();
+  } else if (connectionMode === "ble" && rxCharacteristic) {
+    await rxCharacteristic.writeValue(new TextEncoder().encode(cmd + "\n"));
   }
 }
 
@@ -153,39 +206,35 @@ function appendLog(msg) {
   log.scrollTop = log.scrollHeight;
 }
 
-connectBtn.addEventListener("click", () => {
-  if (port) {
-    appendLog("Conexión finalizada.");
-    window.location.reload();
+// --- Event Listeners ---
+
+connectBtn.addEventListener("click", async () => {
+  if (connectionMode) {
+    onDisconnected();
   } else {
-    connect();
+    // Show simple selection or try Serial first as default
+    const choice = confirm("Press OK for USB Serial, Cancel for Bluetooth");
+    if (choice) connectSerial();
+    else connectBLE();
   }
 });
 
 calibBtn.addEventListener("click", () => {
-  const writer = port.writable.getWriter();
-  writer.write(new TextEncoder().encode("c"));
-  writer.releaseLock();
-  appendLog("Iniciando calibración... Sigue las instrucciones en el panel.");
+  sendCommand("c");
+  appendLog("Starting calibration...");
 });
 
 diagBtn.addEventListener("click", () => {
-  const writer = port.writable.getWriter();
-  writer.write(new TextEncoder().encode("d"));
-  writer.releaseLock();
-  appendLog("Solicitando diagnóstico raw...");
+  sendCommand("d");
+  appendLog("Requesting hardware diagnostics...");
 });
 
 monitorBtn.addEventListener("click", () => {
-  const writer = port.writable.getWriter();
-  writer.write(new TextEncoder().encode("m"));
-  writer.releaseLock();
-  appendLog("Toggled monitoreo continuo.");
+  sendCommand("m");
+  appendLog("Syncing data...");
 });
 
 async function saveDZ(pedal) {
-  if (!port) return;
-
   let low, high;
   if (pedal === "g") {
     low = parseInt(gDZL.value);
@@ -198,41 +247,21 @@ async function saveDZ(pedal) {
     high = parseInt(cDZH.value);
   }
 
-  const cmd = {
-    cmd: "setDZ",
-    p: pedal,
-    low: low,
-    high: high,
-  };
-
-  const jsonString = JSON.stringify(cmd) + "\n";
-  const writer = port.writable.getWriter();
-  await writer.write(new TextEncoder().encode(jsonString));
-  writer.releaseLock();
-
-  appendLog(
-    `Enviando nueva zona muerta para ${pedal}: Low=${low}%, High=${high}%`
-  );
+  const cmd = { cmd: "setDZ", p: pedal, low: low, high: high };
+  await sendCommand(JSON.stringify(cmd));
+  appendLog(`Updating DZ for ${pedal}...`);
 }
 
 advancedToggle.addEventListener("click", () => {
   advancedSection.classList.toggle("visible");
   advancedToggle.innerText = advancedSection.classList.contains("visible")
-    ? "HIDE ADVANCED"
-    : "ADVANCED TOOLS";
+    ? "HIDE TOOLS"
+    : "TOOLS";
 });
 
 resetBtn.addEventListener("click", async () => {
-  if (!port) return;
-  if (
-    !confirm(
-      "¿Estás seguro de que quieres resetear toda la configuración a los valores por defecto?"
-    )
-  )
-    return;
-
-  const writer = port.writable.getWriter();
-  await writer.write(new TextEncoder().encode("r"));
-  writer.releaseLock();
-  appendLog("Comando de reseteo enviado.");
+  if (confirm("Reset to factory defaults?")) {
+    await sendCommand("r");
+    appendLog("Factory reset sent.");
+  }
 });

@@ -113,9 +113,6 @@ private:
     AllCalibrationValues calibration;
     float brake_scaling_factor;  // Factor de escalado dinámico
     
-    // Buffer para Serial print y JSON
-    char printBuffer[128];
-    
     void calibratePedal(const char* pedalName, CalibrationValues& calib) {
         Serial.print("Calibrando ");
         Serial.println(pedalName);
@@ -255,7 +252,7 @@ public:
     public:
         MyCallbacks(PedalManager* m) : _manager(m) {}
         void onWrite(BLECharacteristic *pCharacteristic) {
-            std::string rxValue = pCharacteristic->getValue();
+            String rxValue = pCharacteristic->getValue();
             if (rxValue.length() > 0) {
                 if (rxValue[0] == '{') {
                     _manager->handleJsonCommand(rxValue.c_str());
