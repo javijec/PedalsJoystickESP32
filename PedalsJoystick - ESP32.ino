@@ -76,7 +76,10 @@ private:
     }
 
 public:
-    void begin(bool autoSend = true) { usbJoy.begin(); }
+    void begin(bool autoSend = true) { 
+        usbJoy.begin(); 
+        Serial.println("[DEBUG] USBHIDGamepad initialized");
+    }
     void setZAxisRange(int min, int max) {} 
     void setRxAxisRange(int min, int max) {}
     void setRyAxisRange(int min, int max) {}
@@ -92,6 +95,8 @@ public:
         usbJoy.rightTrigger(_ry);
         usbJoy.leftTrigger(_rx);
         usbJoy.rightStick(_z, 0);
+        // Descomentar para debug muy verboso
+        // Serial.println("."); 
     }
 };
 
@@ -379,9 +384,17 @@ public:
     }
 
     void updateBrake() {
-        int32_t raw_value = brake_pedal.get_value();
-        int16_t newValue = constrain(raw_value * brake_scaling_factor, 0, ADC_brake);
-        if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
+        // Restaurado: Lectura standard pero limitada en frecuencia
+        // Leemos cada 10ms (100Hz) para dar aire al procesador sin perder respuesta
+        static unsigned long lastBrakeRead = 0;
+        if (millis() - lastBrakeRead < 10) return;
+        lastBrakeRead = millis();
+
+        if (brake_pedal.is_ready()) {
+             int32_t raw_value = brake_pedal.get_value(); 
+             int16_t newValue = constrain(raw_value * brake_scaling_factor, 0, ADC_brake);
+             if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
+        }
     }
 
     void updateClutch() {
