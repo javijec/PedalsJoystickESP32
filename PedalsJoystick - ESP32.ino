@@ -63,6 +63,15 @@ struct AllCalibrationValues {
     float brakeMaxForce;  // Fuerza máxima del freno
 } __attribute__((packed));
 
+// Variables globales para Tarea FreeRTOS (Core 0)
+TaskHandle_t TaskBrakeHandle = NULL;
+volatile long fb_brake_raw = 0; // fb = framebuffer type (shared)
+volatile bool fb_brake_ready = false;
+SemaphoreHandle_t fb_mutex = NULL; // Opcional, pero usaremos atomicidad simple para long en 32bit
+
+// Prototipo de la tarea
+void taskBrakeRead(void * parameter);
+
 // Wrapper para compatibilidad con la librería Joystick nativa de ESP32-S3
 class JoystickWrapper {
 private:
@@ -151,16 +160,26 @@ private:
         
         // Leer valor máximo (pedal presionado)
         if (strcmp(pedalName, "FRENO") == 0) {
+            // Detener tarea para tener control exclusivo del bus SPI
+            stopBrakeTask();
+            delay(10); // Esperar que termine cualquier lectura
+            
             float maxValue = 0;
             Serial.println("Manteniendo presionado el freno, tomando muestras...");
             for(int i = 0; i < 20; i++) {
+                // Bloqueante, queremos precisión aquí
+                while(!brake_pedal.is_ready()) { delay(1); }
                 float currentValue = brake_pedal.get_value();
                 maxValue = max(maxValue, currentValue);
-                delay(100);
+                delay(50);
             }
             calibration.brakeMaxForce = maxValue;
+            if (calibration.brakeMaxForce < 1000) calibration.brakeMaxForce = 1000; // Evitar div/0 o valores absurdos
             brake_scaling_factor = ADC_brake / calibration.brakeMaxForce;
             calib.max = ADC_brake;
+            
+            // Reiniciar tarea
+            startBrakeTask();
         } else {
             int pin = (strcmp(pedalName, "GAS") == 0) ? Pin_Gas : Pin_Clutch;
             calib.max = analogRead(pin);
@@ -219,9 +238,9 @@ public:
     void sendJsonState() {
         // Formato: {"g":val, "b":val, "c":val, "rg":raw, "rb":raw, "rc":raw}
         snprintf(printBuffer, sizeof(printBuffer), 
-                "{\"g\":%d,\"b\":%d,\"c\":%d,\"rg\":%d,\"rb\":%.0f,\"rc\":%d}\n", 
+                "{\"g\":%d,\"b\":%d,\"c\":%d,\"rg\":%d,\"rb\":%ld,\"rc\":%d}\n", 
                 gas.value, brake.value, clutch.value,
-                analogRead(Pin_Gas), brake_pedal.get_value(), analogRead(Pin_Clutch));
+                analogRead(Pin_Gas), fb_brake_raw, analogRead(Pin_Clutch));
         sendData(printBuffer);
     }
 
@@ -319,6 +338,9 @@ public:
         pService->start();
         pServer->getAdvertising()->start();
         
+        // Iniciar Tarea de Freno en background
+        startBrakeTask();
+        
         sendJsonCalibration();
         
         display.clearScreen(BLACK);
@@ -384,17 +406,15 @@ public:
     }
 
     void updateBrake() {
-        // Restaurado: Lectura standard pero limitada en frecuencia
-        // Leemos cada 10ms (100Hz) para dar aire al procesador sin perder respuesta
-        static unsigned long lastBrakeRead = 0;
-        if (millis() - lastBrakeRead < 10) return;
-        lastBrakeRead = millis();
-
-        if (brake_pedal.is_ready()) {
-             int32_t raw_value = brake_pedal.get_value(); 
-             int16_t newValue = constrain(raw_value * brake_scaling_factor, 0, ADC_brake);
-             if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
-        }
+        // Lectura NO BLOQUEANTE desde variable compartida actualizada por Core 0
+        long current_raw = fb_brake_raw; 
+        
+        // Aplicar tara (offset) manualmente si es necesario, 
+        // pero get_value() en la tarea ya debería haberla aplicado si se usa correctamente.
+        // Asumimos fb_brake_raw es el valor ya con offset (get_value)
+        
+        int16_t newValue = constrain(current_raw * brake_scaling_factor, 0, ADC_brake);
+        if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
     }
 
     void updateClutch() {
@@ -434,12 +454,56 @@ public:
     void handleJsonCommand(const char* json) {
         // No hay comandos JSON por ahora tras eliminar DZ
     }
+    void startBrakeTask() {
+        if (TaskBrakeHandle == NULL) {
+            xTaskCreatePinnedToCore(
+                taskBrakeRead,    // Función de la tarea
+                "TaskBrake",      // Nombre
+                4096,             // Stack size
+                &brake_pedal,     // Parámetro (puntero al objeto hx711)
+                1,                // Prioridad
+                &TaskBrakeHandle, // Handle
+                0                 // Core 0 (El loop de Arduino corre en Core 1)
+            );
+        }
+    }
+
+    void stopBrakeTask() {
+        if (TaskBrakeHandle != NULL) {
+            vTaskDelete(TaskBrakeHandle);
+            TaskBrakeHandle = NULL;
+        }
+    }
 };
 
 SimRacing::ThreePedals pedals(Pin_Gas, Pin_Brake, Pin_Clutch);
 HX711 brake_pedal;
 JoystickWrapper Joystick;
 PedalManager pedalManager(pedals, brake_pedal, Joystick);
+
+// Tarea FreeRTOS para lectura asíncrona de HX711
+void taskBrakeRead(void * parameter) {
+    HX711* sensor = (HX711*)parameter;
+    
+    // Bucle infinito de la tarea
+    for(;;) {
+        // Si el sensor está listo, leemos.
+        // HX711 es lento (10Hz o 80Hz), así que esto blockeará "naturalmente" 
+        // esperando el pin DOUT, pero en este Core 0, sin afectar al Core 1.
+        if (sensor->is_ready()) {
+            // Usamos get_value() para obtener el valor con TARA ya aplicada.
+            // Esto resta el offset automáticamente.
+            long raw = sensor->get_value();
+            
+            // Actualización atómica (simple asignación de 32-bit es atómica en ESP32)
+            fb_brake_raw = raw;
+            fb_brake_ready = true;
+        } else {
+            // Breve espera para no saturar si algo falla con is_ready
+            vTaskDelay(1 / portTICK_PERIOD_MS);
+        }
+    }
+}
 
 void setup() {
     Serial.begin(115200);
