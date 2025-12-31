@@ -137,6 +137,20 @@ function updateUI(data) {
   }
 }
 
+async function calibrateIndividual(pedal) {
+  let command = "";
+  if (pedal === "g") command = "g";
+  else if (pedal === "b") command = "b";
+  else if (pedal === "c") command = "e";
+
+  if (command) {
+    await sendCommand(command);
+    appendLog(
+      `Iniciando calibración individual para ${pedal.toUpperCase()}...`
+    );
+  }
+}
+
 async function sendCommand(cmd) {
   if (!rxCharacteristic) return;
   const encoder = new TextEncoder();

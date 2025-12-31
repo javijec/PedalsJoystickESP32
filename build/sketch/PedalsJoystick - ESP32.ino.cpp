@@ -125,7 +125,8 @@ private:
         Serial.println("No presiones el pedal y presiona Enter");
         
         while (!Serial.available()) { delay(10); }
-        Serial.read();
+        delay(50); // Pequeña espera para capturar CRLF completo
+        while (Serial.available()) { Serial.read(); } 
         
         // Leer valor mínimo (pedal sin presionar)
         if (strcmp(pedalName, "Freno") == 0) {
@@ -142,7 +143,8 @@ private:
         
         Serial.println("Presiona completamente el pedal y presiona Enter");
         while (!Serial.available()) { delay(10); }
-        Serial.read();
+        delay(50); // Pequeña espera para capturar CRLF completo
+        while (Serial.available()) { Serial.read(); } 
         
         // Leer valor máximo (pedal presionado)
         if (strcmp(pedalName, "Freno") == 0) {
@@ -416,11 +418,11 @@ HX711 brake_pedal;
 JoystickWrapper Joystick;
 PedalManager pedalManager(pedals, brake_pedal, Joystick);
 
-#line 417 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 419 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void setup();
-#line 422 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 424 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void loop();
-#line 417 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 419 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void setup() {
     Serial.begin(115200);
     pedalManager.init();

@@ -373,14 +373,13 @@
           <div class="bar-outer">
             <div id="gasBar" class="bar-inner"></div>
           </div>
-          <div class="config-grid">
-            <div class="config-item">
-              <span>Min</span><span id="g-min">-</span>
-            </div>
             <div class="config-item">
               <span>Max</span><span id="g-max">-</span>
             </div>
           </div>
+          <button class="btn" style="border-color: rgba(0, 255, 163, 0.3); color: var(--primary);" onclick="calibrateIndividual('g')">
+            Calibrate Gas
+          </button>
         </div>
 
         <!-- BRAKE -->
@@ -394,14 +393,13 @@
           <div class="bar-outer">
             <div id="brakeBar" class="bar-inner"></div>
           </div>
-          <div class="config-grid">
-            <div class="config-item">
-              <span>Max Force</span><span id="b-max">-</span>
-            </div>
             <div class="config-item">
               <span>Scale</span><span id="b-scale">-</span>
             </div>
           </div>
+          <button class="btn" style="border-color: rgba(255, 0, 60, 0.3); color: var(--brake);" onclick="calibrateIndividual('b')">
+            Calibrate Brake
+          </button>
         </div>
 
         <!-- CLUTCH -->
@@ -415,14 +413,13 @@
           <div class="bar-outer">
             <div id="clutchBar" class="bar-inner"></div>
           </div>
-          <div class="config-grid">
-            <div class="config-item">
-              <span>Min</span><span id="c-min">-</span>
-            </div>
             <div class="config-item">
               <span>Max</span><span id="c-max">-</span>
             </div>
           </div>
+          <button class="btn" style="border-color: rgba(0, 209, 255, 0.3); color: var(--clutch);" onclick="calibrateIndividual('c')">
+            Calibrate Clutch
+          </button>
         </div>
       </div>
 

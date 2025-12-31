@@ -49,9 +49,9 @@
         "-IC:\\Users\\javij\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.5\\libraries\\BLE\\src",
         "@C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build/build_opt.h",
         "@C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build/file_opts",
-        "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build\\sketch\\HX711.cpp",
+        "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build\\sketch\\PedalsJoystick - ESP32.ino.cpp",
         "-o",
-        "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build\\sketch\\HX711.cpp.o"
+        "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\build\\sketch\\PedalsJoystick - ESP32.ino.cpp.o"
       ],
       "defines": [
         "F_CPU=240000000L",

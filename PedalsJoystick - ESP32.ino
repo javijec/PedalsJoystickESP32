@@ -398,11 +398,22 @@ public:
     }
 
     void handleSimpleCommand(char command) {
+        bool needsRedraw = false;
         switch(command) {
             case 'c': startCalibration(); break;
+            case 'g': calibratePedal("GAS", calibration.gas); needsRedraw = true; break;
+            case 'b': calibratePedal("FRENO", calibration.brake); needsRedraw = true; break;
+            case 'e': calibratePedal("EMBRAGUE", calibration.clutch); needsRedraw = true; break;
             case 'r': resetToDefaults(); break;
             case 'm': sendJsonCalibration(); break;
             case 'd': runHardwareDiagnostics(); break;
+        }
+        if (needsRedraw) {
+            applyCalibration();
+            saveCalibration();
+            sendJsonCalibration();
+            display.clearScreen(BLACK);
+            drawUI();
         }
     }
 
