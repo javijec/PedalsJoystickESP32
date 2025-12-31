@@ -85,10 +85,10 @@ class SignalMonitor {
   push(g, b, c) {
     if (!this.running) return;
 
-    // Normalizar a 0-1 usando el rango de salida del Joystick (0-4095)
-    // Esto asegura que se vea 0% a 100% calibrado, con clamping para seguridad visual
+    // Normalizar a 0-1 usando el rango de salida del Joystick
+    // Gas/Clutch (4095), Brake (16384)
     this.data.g.push(Math.min(1, Math.max(0, g / 4095)));
-    this.data.b.push(Math.min(1, Math.max(0, b / 4095)));
+    this.data.b.push(Math.min(1, Math.max(0, b / 16384)));
     this.data.c.push(Math.min(1, Math.max(0, c / 4095)));
 
     if (this.data.g.length > this.maxPoints) this.data.g.shift();
