@@ -111,27 +111,38 @@ private:
     float brake_scaling_factor;  // Factor de escalado dinámico
     
     void calibratePedal(const char* pedalName, CalibrationValues& calib) {
+        display.clearScreen(BLACK);
+        display.drawCenteredText(20, "CALIBRACION", YELLOW, BLACK, 2);
+        display.drawCenteredText(60, pedalName, WHITE, BLACK, 2);
+        
+        display.drawCenteredText(100, "SUELTA EL PEDAL", RED, BLACK, 1);
+        display.drawCenteredText(120, "y presiona ENTER en PC", LIGHTGRAY, BLACK, 1);
+        
         Serial.print("Calibrando ");
         Serial.println(pedalName);
-        
         Serial.println("No presiones el pedal y presiona Enter");
+        
         while (!Serial.available()) { delay(10); }
-        Serial.read();
+        delay(50); // Pequeña espera para capturar CRLF completo
+        while (Serial.available()) { Serial.read(); } 
         
         // Leer valor mínimo (pedal sin presionar)
         if (strcmp(pedalName, "Freno") == 0) {
             float rawValue = brake_pedal.get_value();
             calib.min = (int16_t)rawValue;
-            Serial.print("Valor raw mínimo del freno: ");
-            Serial.println(rawValue);
         } else {
             int pin = strcmp(pedalName, "Gas") == 0 ? Pin_Gas : Pin_Clutch;
             calib.min = analogRead(pin);
         }
         
+        display.fillRect(0, 90, 320, 60, BLACK); // Limpiar zona de texto inferior
+        display.drawCenteredText(100, "PISA A FONDO", GREEN, BLACK, 1);
+        display.drawCenteredText(120, "y presiona ENTER en PC", LIGHTGRAY, BLACK, 1);
+        
         Serial.println("Presiona completamente el pedal y presiona Enter");
         while (!Serial.available()) { delay(10); }
-        Serial.read();
+        delay(50); // Pequeña espera para capturar CRLF completo
+        while (Serial.available()) { Serial.read(); } 
         
         // Leer valor máximo (pedal presionado)
         if (strcmp(pedalName, "Freno") == 0) {
@@ -340,12 +351,15 @@ public:
     }
 
     void startCalibration() {
-        calibratePedal("Gas", calibration.gas);
-        calibratePedal("Freno", calibration.brake);
-        calibratePedal("Embrague", calibration.clutch);
+        calibratePedal("GAS", calibration.gas);
+        calibratePedal("FRENO", calibration.brake);
+        calibratePedal("EMBRAGUE", calibration.clutch);
         applyCalibration();
         saveCalibration();
         sendJsonCalibration();
+        
+        display.clearScreen(BLACK);
+        drawUI();
     }
 
     inline bool checkChange(PedalState& state, int16_t newValue) {
