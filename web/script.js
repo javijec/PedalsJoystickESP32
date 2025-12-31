@@ -21,6 +21,10 @@ const resetBtn = document.getElementById("resetBtn");
 const statusDot = document.getElementById("statusDot");
 const statusText = document.getElementById("statusText");
 const log = document.getElementById("log");
+const calibModal = document.getElementById("calibModal");
+const modalPedalName = document.getElementById("modalPedalName");
+const modalStepText = document.getElementById("modalStepText");
+const modalNextBtn = document.getElementById("modalNextBtn");
 
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
@@ -35,6 +39,10 @@ const bMax = document.getElementById("b-max");
 const bScale = document.getElementById("b-scale");
 const cMin = document.getElementById("c-min");
 const cMax = document.getElementById("c-max");
+
+const rawG = document.getElementById("raw-g");
+const rawB = document.getElementById("raw-b");
+const rawC = document.getElementById("raw-c");
 
 // --- Connection Logic ---
 
@@ -164,6 +172,10 @@ function updateUI(data) {
     clutchVal.innerText = `${Math.round(clutchPct)}%`;
   }
 
+  if (data.rg !== undefined && rawG) rawG.innerText = data.rg;
+  if (data.rb !== undefined && rawB) rawB.innerText = data.rb.toFixed(0);
+  if (data.rc !== undefined && rawC) rawC.innerText = data.rc;
+
   if (data.cal) {
     gMin.innerText = data.cal.gmin;
     gMax.innerText = data.cal.gmax;
@@ -172,22 +184,43 @@ function updateUI(data) {
       bScale.innerText = (16384 / data.cal.bmax).toFixed(4);
     cMin.innerText = data.cal.cmin;
     cMax.innerText = data.cal.cmax;
+
+    // Si recibimos datos de calibración, ocultamos el modal (proceso finalizado)
+    hideCalibrationModal();
   }
+}
+
+function showCalibrationModal(title) {
+  modalPedalName.innerText = title;
+  modalStepText.innerText = "Sigue las instrucciones en la pantalla del ESP32.";
+  calibModal.classList.add("active");
+}
+
+function hideCalibrationModal() {
+  calibModal.classList.remove("active");
 }
 
 // --- Outgoing Commands ---
 
 async function calibrateIndividual(pedal) {
+  if (document.activeElement) document.activeElement.blur();
   let command = "";
-  if (pedal === "g") command = "g";
-  else if (pedal === "b") command = "b";
-  else if (pedal === "c") command = "e";
+  let name = "";
+  if (pedal === "g") {
+    command = "g";
+    name = "ACELERADOR";
+  } else if (pedal === "b") {
+    command = "b";
+    name = "FRENO";
+  } else if (pedal === "c") {
+    command = "e";
+    name = "EMBRAGUE";
+  }
 
   if (command) {
+    showCalibrationModal(name);
     await sendCommand(command);
-    appendLog(
-      `Iniciando calibración individual para ${pedal.toUpperCase()}...`
-    );
+    appendLog(`Iniciando calibración individual para ${name}...`);
   }
 }
 
@@ -227,8 +260,19 @@ connectBleBtn.addEventListener("click", async () => {
 });
 
 calibBtn.addEventListener("click", () => {
+  showCalibrationModal("CALIBRACION COMPLETA");
   sendCommand("c");
   appendLog("Starting calibration...");
+});
+
+modalNextBtn.addEventListener("click", () => {
+  sendCommand("\n");
+});
+
+window.addEventListener("keydown", (e) => {
+  if (calibModal.classList.contains("active") && e.key === "Enter") {
+    sendCommand("\n");
+  }
 });
 
 diagBtn.addEventListener("click", () => {

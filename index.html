@@ -349,6 +349,76 @@
         background: var(--glass-border);
         border-radius: 10px;
       }
+
+      /* Estilos del Modal de Calibración */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(15px);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .modal-overlay.active {
+        display: flex;
+        opacity: 1;
+      }
+
+      .modal-content {
+        background: var(--card-bg);
+        border: 2px solid var(--primary);
+        border-radius: 2rem;
+        padding: 3rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 0 50px rgba(0, 255, 163, 0.2);
+      }
+
+      .modal-title {
+        font-family: "Syncopate", sans-serif;
+        color: var(--primary);
+        margin-bottom: 2rem;
+        font-size: 1.5rem;
+      }
+
+      .modal-step {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+        color: var(--text);
+      }
+
+      .btn-modal {
+        background: var(--primary);
+        color: var(--bg);
+        padding: 1rem 2rem;
+        font-size: 1rem;
+        font-weight: 900;
+        border: none;
+        border-radius: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-modal:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px var(--primary);
+      }
+
+      .modal-hint {
+        margin-top: 1.5rem;
+        font-size: 0.8rem;
+        color: var(--text-dim);
+      }
     </style>
   </head>
   <body>
@@ -476,6 +546,25 @@
       </div>
 
       <div id="advancedSection" class="advanced-panel">
+        <div
+          style="
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+          "
+        >
+          <div class="config-item">
+            <span>RAW GAS</span><span id="raw-g">-</span>
+          </div>
+          <div class="config-item">
+            <span>RAW BRAKE</span><span id="raw-b">-</span>
+          </div>
+          <div class="config-item">
+            <span>RAW CLUTCH</span><span id="raw-c">-</span>
+          </div>
+        </div>
         <button id="diagBtn" class="btn" disabled>Hardware Diagnostics</button>
         <button id="monitorBtn" class="btn" disabled>
           Live Bridge Monitor
@@ -491,6 +580,31 @@
       </div>
 
       <div id="log">Awaiting pedalboard connection...</div>
+    </div>
+
+    <!-- Modal de Calibración -->
+    <div id="calibModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-title">CALIBRATION</div>
+        <div
+          id="modalPedalName"
+          style="
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+          "
+        >
+          ACELERADOR
+        </div>
+        <div id="modalStepText" class="modal-step">
+          Sigue las instrucciones en la pantalla del ESP32.
+        </div>
+        <button id="modalNextBtn" class="btn-modal">CONTINUAR (ENTER)</button>
+        <div class="modal-hint">
+          También puedes pulsar la tecla <b>ENTER</b> en tu teclado.
+        </div>
+      </div>
     </div>
 
     <script src="web/script.js"></script>

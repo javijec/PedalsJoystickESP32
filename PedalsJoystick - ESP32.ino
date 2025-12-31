@@ -212,10 +212,11 @@ private:
     
 public:
     void sendJsonState() {
-        // Formato: {"g":val, "b":val, "c":val}
+        // Formato: {"g":val, "b":val, "c":val, "rg":raw, "rb":raw, "rc":raw}
         snprintf(printBuffer, sizeof(printBuffer), 
-                "{\"g\":%d,\"b\":%d,\"c\":%d}\n", 
-                gas.value, brake.value, clutch.value);
+                "{\"g\":%d,\"b\":%d,\"c\":%d,\"rg\":%d,\"rb\":%.0f,\"rc\":%d}\n", 
+                gas.value, brake.value, clutch.value,
+                analogRead(Pin_Gas), brake_pedal.get_value(), analogRead(Pin_Clutch));
         sendData(printBuffer);
     }
 
