@@ -604,7 +604,7 @@
         </button>
       </div>
 
-      <div id="advancedSection" class="advanced-panel hidden">
+      <div id="advancedSection" class="advanced-panel">
         <div
           style="
             grid-column: 1 / -1;
@@ -628,9 +628,7 @@
         <button id="connectBtn" class="btn btn-big btn-connect offline-only">
           Connect Bluetooth
         </button>
-        <button id="monitorBtn" class="btn" disabled>
-          Live Bridge Monitor
-        </button>
+        <!-- Gráficas integradas, eliminamos botón monitor antiguo -->
         <button
           id="resetBtn"
           class="btn"
@@ -639,6 +637,33 @@
         >
           Factory Reset
         </button>
+      </div>
+
+      <style>
+        .graph-container {
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          padding: 1rem;
+          margin-top: 1rem;
+          backdrop-filter: blur(10px);
+          width: 100%;
+        }
+        canvas {
+          width: 100%;
+          height: 150px;
+          display: block;
+        }
+      </style>
+
+      <div id="graphSection" class="graph-container connect-only hidden">
+        <h3 style="margin-bottom: 0.5rem; opacity: 0.8; font-size: 0.9rem">
+          LIVE SIGNAL MONITOR
+          <span style="color: var(--primary)">■ Gas</span>
+          <span style="color: var(--brake)">■ Brake</span>
+          <span style="color: var(--clutch)">■ Clutch</span>
+        </h3>
+        <canvas id="signalChart"></canvas>
       </div>
 
       <div id="log">Awaiting pedalboard connection...</div>
