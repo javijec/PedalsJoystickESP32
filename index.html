@@ -624,6 +624,31 @@
             <span>RAW CLUTCH</span><span id="raw-c">-</span>
           </div>
         </div>
+
+        <!-- Filter Control -->
+        <div class="config-item" style="grid-column: 1 / -1; margin: 0.5rem 0">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 5px;
+            "
+          >
+            <span>SIGNAL SMOOTHING (EMA)</span>
+            <span id="filterVal" style="color: var(--primary)">0%</span>
+          </div>
+          <input
+            type="range"
+            id="filterRange"
+            min="0"
+            max="95"
+            value="0"
+            style="width: 100%; accent-color: var(--primary)"
+          />
+          <div style="font-size: 0.7rem; color: #666; margin-top: 2px">
+            0% = Instant (Raw) &nbsp;|&nbsp; 95% = Max Smooth (Slow)
+          </div>
+        </div>
         <button id="diagBtn" class="btn" disabled>Hardware Diagnostics</button>
         <button id="connectBtn" class="btn btn-big btn-connect offline-only">
           Connect Bluetooth

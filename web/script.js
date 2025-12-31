@@ -52,6 +52,9 @@ const rawG = document.getElementById("raw-g");
 const rawB = document.getElementById("raw-b");
 const rawC = document.getElementById("raw-c");
 
+const filterRange = document.getElementById("filterRange");
+const filterVal = document.getElementById("filterVal");
+
 // --- Signal Monitor Class ---
 class SignalMonitor {
   constructor(canvasId) {
@@ -371,6 +374,12 @@ function updateUI(data) {
 
     // Calibration received means calibration process finished
     hideCalibrationModal();
+
+    // Update Filter UI
+    if (data.cal.filter !== undefined) {
+      if (filterRange) filterRange.value = data.cal.filter;
+      if (filterVal) filterVal.innerText = data.cal.filter + "%";
+    }
   }
 }
 
@@ -513,3 +522,17 @@ diagBtn.addEventListener("click", () => {
 advancedToggle.addEventListener("click", () => {
   advancedSection.classList.toggle("visible");
 });
+
+if (filterRange) {
+  filterRange.addEventListener("input", (e) => {
+    const val = e.target.value;
+    if (filterVal) filterVal.innerText = val + "%";
+    sendCommand("f" + val); // Real-time update
+  });
+
+  // Al soltar, guardamos en EEPROM
+  filterRange.addEventListener("change", () => {
+    sendCommand("s");
+    appendLog("Filter setting saved.");
+  });
+}

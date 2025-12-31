@@ -41,6 +41,7 @@ static constexpr int16_t DEFAULT_BRAKE_MAX = 16384;
 static constexpr int16_t DEFAULT_CLUTCH_MIN = 0;
 static constexpr int16_t DEFAULT_CLUTCH_MAX = 4095;
 static constexpr float DEFAULT_BRAKE_MAX_FORCE = 1000000.0f;
+static constexpr uint8_t DEFAULT_FILTER_ALPHA = 0;
 
 // Estructura para mantener el estado de los pedales
 struct PedalState {
@@ -60,6 +61,7 @@ struct AllCalibrationValues {
     CalibrationValues gas;
     CalibrationValues brake;
     CalibrationValues clutch;
+    uint8_t filterAlpha; // Factor de suavizado (0-100%). 0=Crudo, 100=Max Suavizado.
     float brakeMaxForce;  // Fuerza máxima del freno
 } __attribute__((packed));
 
@@ -233,6 +235,24 @@ private:
             pTxCharacteristic->notify();
         }
     }
+
+    // Variables de estado para filtrado EMA (float para precisión)
+    float gasFiltered = 0.0f;
+    float brakeFiltered = 0.0f;
+    float clutchFiltered = 0.0f;
+
+    // Función Helper para EMA
+    // alpha_pct: 0-100. (0% = Sin filtro/Instantaneo, 100% = Estático)
+    float filterEMA(float current, float previous, uint8_t alpha_pct) {
+        if (alpha_pct >= 100) return previous; // Evitar bloqueo total
+        if (alpha_pct == 0) return current;    // Paso directo
+        
+        // Invertimos la lógica para que el slider de UI sea intuitivo:
+        // UI 0% -> alpha 1.0 (Sin filtro)
+        // UI 90% -> alpha 0.1 (Mucho filtro)
+        float k = (100.0f - alpha_pct) / 100.0f;
+        return (current * k) + (previous * (1.0f - k));
+    }
     
 public:
     void sendJsonState() {
@@ -247,10 +267,11 @@ public:
     void sendJsonCalibration() {
         // Formato para sincronizar la web: 
         snprintf(printBuffer, sizeof(printBuffer),
-                "{\"cal\":{\"gmin\":%d,\"gmax\":%d,\"bmax\":%.0f,\"cmin\":%d,\"cmax\":%d}}\n",
+                "{\"cal\":{\"gmin\":%d,\"gmax\":%d,\"bmax\":%.0f,\"cmin\":%d,\"cmax\":%d,\"filter\":%d}}\n",
                 calibration.gas.min, calibration.gas.max, 
                 calibration.brakeMaxForce, 
-                calibration.clutch.min, calibration.clutch.max);
+                calibration.clutch.min, calibration.clutch.max,
+                calibration.filterAlpha); // Enviar filtro actual
         sendData(printBuffer);
     }
 
@@ -279,7 +300,7 @@ public:
                 if (rxValue[0] == '{') {
                     _manager->handleJsonCommand(rxValue.c_str());
                 } else {
-                    _manager->handleSimpleCommand(rxValue[0]);
+                    _manager->handleSimpleCommand(rxValue); // Pass String for 'f' command
                 }
             }
         }
@@ -372,6 +393,7 @@ public:
         calibration.brake = {DEFAULT_BRAKE_MIN, DEFAULT_BRAKE_MAX};
         calibration.clutch = {DEFAULT_CLUTCH_MIN, DEFAULT_CLUTCH_MAX};
         calibration.brakeMaxForce = DEFAULT_BRAKE_MAX_FORCE;
+        calibration.filterAlpha = DEFAULT_FILTER_ALPHA; // Initialize filter alpha
         calibration.magic = CALIBRATION_MAGIC;
         brake_scaling_factor = ADC_brake / calibration.brakeMaxForce;
         applyCalibration();
@@ -401,24 +423,32 @@ public:
     }
 
     void updateGas() {
-        int16_t newValue = pedals.getPosition(SimRacing::Gas, 0, ADC_Max);
+        int16_t rawValue = pedals.getPosition(SimRacing::Gas, 0, ADC_Max);
+        gasFiltered = filterEMA((float)rawValue, gasFiltered, calibration.filterAlpha);
+        
+        int16_t newValue = (int16_t)gasFiltered;
         if (checkChange(gas, newValue)) joystick.setRyAxis(gas.value);
     }
 
     void updateBrake() {
-        // Lectura NO BLOQUEANTE desde variable compartida actualizada por Core 0
+        // Lectura NO BLOQUEANTE desde variable compartida
         long current_raw = fb_brake_raw; 
         
-        // Aplicar tara (offset) manualmente si es necesario, 
-        // pero get_value() en la tarea ya debería haberla aplicado si se usa correctamente.
-        // Asumimos fb_brake_raw es el valor ya con offset (get_value)
-        
-        int16_t newValue = constrain(current_raw * brake_scaling_factor, 0, ADC_brake);
+        // Aplicar Scaling Factor
+        float scaledValue = (float)constrain(current_raw * brake_scaling_factor, 0, ADC_brake);
+
+        // Aplicar Filtro EMA
+        brakeFiltered = filterEMA(scaledValue, brakeFiltered, calibration.filterAlpha);
+
+        int16_t newValue = (int16_t)brakeFiltered;
         if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
     }
 
     void updateClutch() {
-        int16_t newValue = pedals.getPosition(SimRacing::Clutch, 0, ADC_Max);
+        float rawValue = (float)pedals.getPosition(SimRacing::Clutch, 0, ADC_Max);
+        clutchFiltered = filterEMA(rawValue, clutchFiltered, calibration.filterAlpha);
+        
+        int16_t newValue = (int16_t)clutchFiltered;
         if (checkChange(clutch, newValue)) joystick.setZAxis(clutch.value);
     }
 
@@ -431,8 +461,9 @@ public:
         if (gas.changed || brake.changed || clutch.changed) joystick.sendState();
     }
 
-    void handleSimpleCommand(char command) {
+    void handleSimpleCommand(const String& input) {
         bool needsRedraw = false;
+        char command = input[0];
         switch(command) {
             case 'c': startCalibration(); break;
             case 'g': calibratePedal("GAS", calibration.gas); needsRedraw = true; break;
@@ -441,6 +472,21 @@ public:
             case 'r': resetToDefaults(); break;
             case 'm': sendJsonCalibration(); break;
             case 'd': runHardwareDiagnostics(); break;
+            case 's': // Save
+                saveCalibration();
+                Serial.println("OK Saved");
+                break;
+            case 'f': // Filter config: f50 (50%)
+                {
+                   String valStr = input.substring(1);
+                   int val = valStr.toInt();
+                   if (val < 0) val = 0;
+                   if (val > 95) val = 95; // Limitamos a 95% para evitar lag excesivo
+                   calibration.filterAlpha = (uint8_t)val;
+                   Serial.printf("Filter set to: %d%%\n", calibration.filterAlpha);
+                   // Opcional: Auto-save o esperar a 's'
+                }
+                break;
         }
         if (needsRedraw) {
             applyCalibration();
@@ -518,7 +564,7 @@ void loop() {
             if (input.startsWith("{")) {
                 pedalManager.handleJsonCommand(input.c_str());
             } else {
-                pedalManager.handleSimpleCommand(input[0]);
+                pedalManager.handleSimpleCommand(input);
             }
         }
     }
