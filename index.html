@@ -448,8 +448,19 @@
       </div>
 
       <div class="main-actions">
-        <button id="connectBtn" class="btn btn-big btn-connect">
-          Initialize Connection
+        <button
+          id="connectSerialBtn"
+          class="btn btn-big btn-connect"
+          style="background: var(--primary); color: var(--bg)"
+        >
+          Connect USB (Serial)
+        </button>
+        <button
+          id="connectBleBtn"
+          class="btn btn-big btn-connect"
+          style="background: var(--clutch); color: var(--bg)"
+        >
+          Connect Wireless (BLE)
         </button>
         <button id="calibBtn" class="btn btn-big" disabled>
           Run Auto-Calibration

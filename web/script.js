@@ -10,7 +10,8 @@ const RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
 // UI Elements
-const connectBtn = document.getElementById("connectBtn");
+const connectSerialBtn = document.getElementById("connectSerialBtn");
+const connectBleBtn = document.getElementById("connectBleBtn");
 const calibBtn = document.getElementById("calibBtn");
 const diagBtn = document.getElementById("diagBtn");
 const monitorBtn = document.getElementById("monitorBtn");
@@ -82,7 +83,8 @@ async function connectBLE() {
 function onConnected(text) {
   statusDot.classList.add("connected");
   statusText.innerText = text;
-  connectBtn.innerText = "DISCONNECT";
+  connectSerialBtn.innerText = "DISCONNECT";
+  connectBleBtn.innerText = "DISCONNECT";
   setUIEnabled(true);
   appendLog("Connected via " + connectionMode.toUpperCase());
 }
@@ -208,14 +210,19 @@ function appendLog(msg) {
 
 // --- Event Listeners ---
 
-connectBtn.addEventListener("click", async () => {
+connectSerialBtn.addEventListener("click", async () => {
   if (connectionMode) {
     onDisconnected();
   } else {
-    // Show simple selection or try Serial first as default
-    const choice = confirm("Press OK for USB Serial, Cancel for Bluetooth");
-    if (choice) connectSerial();
-    else connectBLE();
+    connectSerial();
+  }
+});
+
+connectBleBtn.addEventListener("click", async () => {
+  if (connectionMode) {
+    onDisconnected();
+  } else {
+    connectBLE();
   }
 });
 
