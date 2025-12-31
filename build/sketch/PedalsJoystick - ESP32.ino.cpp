@@ -7,6 +7,15 @@
 #include "HX711.h"
 #include "ST7789_Graphics.h"
 #include <Preferences.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// UUIDs para Bluetooth LE (Perfil UART)
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 // Definición de pines como constantes en tiempo de compilación
 // Definición de pines para Waveshare ESP32-S3-LCD-1.47
@@ -106,9 +115,6 @@ private:
     AllCalibrationValues calibration;
     float brake_scaling_factor;  // Factor de escalado dinámico
     
-    // Buffer para Serial print y JSON
-    char printBuffer[128];
-    
     void calibratePedal(const char* pedalName, CalibrationValues& calib) {
         Serial.print("Calibrando ");
         Serial.println(pedalName);
@@ -179,13 +185,32 @@ private:
         );
     }
 
+    // Variables Bluetooth 
+    BLEServer *pServer = NULL;
+    BLECharacteristic *pTxCharacteristic;
+    bool deviceConnected = false;
+    
+    // Buffer para Serial print y JSON
+    char printBuffer[256]; // Aumentado para seguridad
+    
+    void sendData(const char* data) {
+        // Enviar por USB Serial
+        Serial.print(data);
+        
+        // Enviar por Bluetooth si hay conexión
+        if (deviceConnected) {
+            pTxCharacteristic->setValue((uint8_t*)data, strlen(data));
+            pTxCharacteristic->notify();
+        }
+    }
+    
 public:
     void sendJsonState() {
         // Formato: {"g":val, "b":val, "c":val}
         snprintf(printBuffer, sizeof(printBuffer), 
                 "{\"g\":%d,\"b\":%d,\"c\":%d}\n", 
                 gas.value, brake.value, clutch.value);
-        Serial.print(printBuffer);
+        sendData(printBuffer);
     }
 
     void sendJsonCalibration() {
@@ -195,7 +220,7 @@ public:
                 calibration.gas.min, calibration.gas.max, calibration.gasDZLow, calibration.gasDZHigh,
                 calibration.brakeMaxForce, calibration.brakeDZLow, calibration.brakeDZHigh,
                 calibration.clutch.min, calibration.clutch.max, calibration.clutchDZLow, calibration.clutchDZHigh);
-        Serial.print(printBuffer);
+        sendData(printBuffer);
     }
 
     int16_t applyDeadzone(int32_t value, int32_t max_val, uint8_t dzLowPct, uint8_t dzHighPct) {
@@ -211,6 +236,34 @@ public:
 
     PedalManager(SimRacing::ThreePedals& p, HX711& b, JoystickWrapper& j) 
         : pedals(p), brake_pedal(b), joystick(j) {}
+
+    // Callbacks para eventos BLE
+    class MyServerCallbacks: public BLEServerCallbacks {
+        PedalManager* _manager;
+    public:
+        MyServerCallbacks(PedalManager* m) : _manager(m) {}
+        void onConnect(BLEServer* pServer) { _manager->deviceConnected = true; };
+        void onDisconnect(BLEServer* pServer) { 
+            _manager->deviceConnected = false; 
+            BLEDevice::startAdvertising(); // Reiniciar publicidad para permitir nueva conexión
+        }
+    };
+
+    class MyCallbacks: public BLECharacteristicCallbacks {
+        PedalManager* _manager;
+    public:
+        MyCallbacks(PedalManager* m) : _manager(m) {}
+        void onWrite(BLECharacteristic *pCharacteristic) {
+            String rxValue = pCharacteristic->getValue();
+            if (rxValue.length() > 0) {
+                if (rxValue[0] == '{') {
+                    _manager->handleJsonCommand(rxValue.c_str());
+                } else {
+                    _manager->handleSimpleCommand(rxValue[0]);
+                }
+            }
+        }
+    };
 
     void runHardwareDiagnostics() {
         Serial.println("\n--- DIAGNÓSTICO DE HARDWARE ---");
@@ -249,6 +302,22 @@ public:
         joystick.begin(true);
         loadCalibration();
         updateAll();
+        
+        // Inicializar Bluetooth LE
+        BLEDevice::init("PedalMaster BLE");
+        pServer = BLEDevice::createServer();
+        pServer->setCallbacks(new MyServerCallbacks(this));
+        
+        BLEService *pService = pServer->createService(SERVICE_UUID);
+        pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
+        pTxCharacteristic->addDescriptor(new BLE2902());
+        
+        BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
+        pRxCharacteristic->setCallbacks(new MyCallbacks(this));
+        
+        pService->start();
+        pServer->getAdvertising()->start();
+        
         sendJsonCalibration();
         
         display.clearScreen(BLACK);
@@ -336,6 +405,15 @@ public:
         if (gas.changed || brake.changed || clutch.changed) joystick.sendState();
     }
 
+    void handleSimpleCommand(char command) {
+        switch(command) {
+            case 'c': startCalibration(); break;
+            case 'r': resetToDefaults(); break;
+            case 'm': sendJsonCalibration(); break;
+            case 'd': runHardwareDiagnostics(); break;
+        }
+    }
+
     void handleJsonCommand(const char* json) {
         if (strstr(json, "\"cmd\":\"setDZ\"")) {
             char pedal = ' ';
@@ -361,11 +439,11 @@ HX711 brake_pedal;
 JoystickWrapper Joystick;
 PedalManager pedalManager(pedals, brake_pedal, Joystick);
 
-#line 362 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 440 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void setup();
-#line 367 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 445 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void loop();
-#line 362 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
+#line 440 "C:\\Users\\javij\\OneDrive\\01-Programacion\\06-Arduino\\pedalera Logitech\\Pedalera funcionando\\PedalsJoystick - ESP32\\PedalsJoystick - ESP32.ino"
 void setup() {
     Serial.begin(115200);
     pedalManager.init();
@@ -379,13 +457,7 @@ void loop() {
             if (input.startsWith("{")) {
                 pedalManager.handleJsonCommand(input.c_str());
             } else {
-                char command = input[0];
-                switch(command) {
-                    case 'c': pedalManager.startCalibration(); break;
-                    case 'r': pedalManager.resetToDefaults(); break;
-                    case 'm': pedalManager.sendJsonCalibration(); break;
-                    case 'd': pedalManager.runHardwareDiagnostics(); break;
-                }
+                pedalManager.handleSimpleCommand(input[0]);
             }
         }
     }
