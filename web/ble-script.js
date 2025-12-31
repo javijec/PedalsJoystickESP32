@@ -30,15 +30,7 @@ const gMin = document.getElementById("g-min");
 const gMax = document.getElementById("g-max");
 const bMax = document.getElementById("b-max");
 const bScale = document.getElementById("b-scale");
-const cMin = document.getElementById("c-min");
 const cMax = document.getElementById("c-max");
-
-const gDZL = document.getElementById("g-dzl");
-const gDZH = document.getElementById("g-dzh");
-const bDZL = document.getElementById("b-dzl");
-const bDZH = document.getElementById("b-dzh");
-const cDZL = document.getElementById("c-dzl");
-const cDZH = document.getElementById("c-dzh");
 
 async function connect() {
   try {
@@ -142,13 +134,6 @@ function updateUI(data) {
       bScale.innerText = (16384 / data.cal.bmax).toFixed(4);
     cMin.innerText = data.cal.cmin;
     cMax.innerText = data.cal.cmax;
-
-    if (document.activeElement !== gDZL) gDZL.value = data.cal.gdzl;
-    if (document.activeElement !== gDZH) gDZH.value = data.cal.gdzh;
-    if (document.activeElement !== bDZL) bDZL.value = data.cal.bdzl;
-    if (document.activeElement !== bDZH) bDZH.value = data.cal.bdzh;
-    if (document.activeElement !== cDZL) cDZL.value = data.cal.cdzl;
-    if (document.activeElement !== cDZH) cDZH.value = data.cal.cdzh;
   }
 }
 
@@ -189,21 +174,7 @@ monitorBtn.addEventListener("click", () => {
 });
 
 async function saveDZ(pedal) {
-  let low, high;
-  if (pedal === "g") {
-    low = parseInt(gDZL.value);
-    high = parseInt(gDZH.value);
-  } else if (pedal === "b") {
-    low = parseInt(bDZL.value);
-    high = parseInt(bDZH.value);
-  } else if (pedal === "c") {
-    low = parseInt(cDZL.value);
-    high = parseInt(cDZH.value);
-  }
-
-  const cmd = { cmd: "setDZ", p: pedal, low: low, high: high };
-  await sendCommand(JSON.stringify(cmd));
-  appendLog(`Updating DZ for ${pedal}...`);
+  // Función desactivada
 }
 
 advancedToggle.addEventListener("click", () => {

@@ -60,10 +60,7 @@ struct AllCalibrationValues {
     CalibrationValues gas;
     CalibrationValues brake;
     CalibrationValues clutch;
-    float brakeMaxForce;  // Nuevo campo para la fuerza máxima del freno
-    uint8_t gasDZLow, gasDZHigh;
-    uint8_t brakeDZLow, brakeDZHigh;
-    uint8_t clutchDZLow, clutchDZHigh;
+    float brakeMaxForce;  // Fuerza máxima del freno
 } __attribute__((packed));
 
 // Wrapper para compatibilidad con la librería Joystick nativa de ESP32-S3
@@ -214,22 +211,11 @@ public:
     void sendJsonCalibration() {
         // Formato para sincronizar la web: 
         snprintf(printBuffer, sizeof(printBuffer),
-                "{\"cal\":{\"gmin\":%d,\"gmax\":%d,\"gdzl\":%d,\"gdzh\":%d,\"bmax\":%.0f,\"bdzl\":%d,\"bdzh\":%d,\"cmin\":%d,\"cmax\":%d,\"cdzl\":%d,\"cdzh\":%d}}\n",
-                calibration.gas.min, calibration.gas.max, calibration.gasDZLow, calibration.gasDZHigh,
-                calibration.brakeMaxForce, calibration.brakeDZLow, calibration.brakeDZHigh,
-                calibration.clutch.min, calibration.clutch.max, calibration.clutchDZLow, calibration.clutchDZHigh);
+                "{\"cal\":{\"gmin\":%d,\"gmax\":%d,\"bmax\":%.0f,\"cmin\":%d,\"cmax\":%d}}\n",
+                calibration.gas.min, calibration.gas.max, 
+                calibration.brakeMaxForce, 
+                calibration.clutch.min, calibration.clutch.max);
         sendData(printBuffer);
-    }
-
-    int16_t applyDeadzone(int32_t value, int32_t max_val, uint8_t dzLowPct, uint8_t dzHighPct) {
-        int32_t lowLimit = (max_val * dzLowPct) / 100;
-        int32_t highLimit = max_val - (max_val * dzHighPct) / 100;
-        
-        if (value <= lowLimit) return 0;
-        if (value >= highLimit) return max_val;
-        
-        // Escalar el valor restante
-        return (int16_t)((value - lowLimit) * (int32_t)max_val / (highLimit - lowLimit));
     }
 
     PedalManager(SimRacing::ThreePedals& p, HX711& b, JoystickWrapper& j) 
@@ -347,9 +333,6 @@ public:
         calibration.brake = {DEFAULT_BRAKE_MIN, DEFAULT_BRAKE_MAX};
         calibration.clutch = {DEFAULT_CLUTCH_MIN, DEFAULT_CLUTCH_MAX};
         calibration.brakeMaxForce = DEFAULT_BRAKE_MAX_FORCE;
-        calibration.gasDZLow = 2; calibration.gasDZHigh = 2;
-        calibration.brakeDZLow = 2; calibration.brakeDZHigh = 2;
-        calibration.clutchDZLow = 2; calibration.clutchDZHigh = 2;
         calibration.magic = CALIBRATION_MAGIC;
         brake_scaling_factor = ADC_brake / calibration.brakeMaxForce;
         applyCalibration();
@@ -377,20 +360,17 @@ public:
 
     void updateGas() {
         int16_t newValue = pedals.getPosition(SimRacing::Gas, 0, ADC_Max);
-        newValue = applyDeadzone(newValue, ADC_Max, calibration.gasDZLow, calibration.gasDZHigh);
         if (checkChange(gas, newValue)) joystick.setRyAxis(gas.value);
     }
 
     void updateBrake() {
         int32_t raw_value = brake_pedal.get_value();
-        int16_t scaledValue = constrain(raw_value * brake_scaling_factor, 0, ADC_brake);
-        int16_t newValue = applyDeadzone(scaledValue, ADC_brake, calibration.brakeDZLow, calibration.brakeDZHigh);
+        int16_t newValue = constrain(raw_value * brake_scaling_factor, 0, ADC_brake);
         if (checkChange(brake, newValue)) joystick.setRxAxis(brake.value);
     }
 
     void updateClutch() {
         int16_t newValue = pedals.getPosition(SimRacing::Clutch, 0, ADC_Max);
-        newValue = applyDeadzone(newValue, ADC_Max, calibration.clutchDZLow, calibration.clutchDZHigh);
         if (checkChange(clutch, newValue)) joystick.setZAxis(clutch.value);
     }
 
@@ -413,22 +393,7 @@ public:
     }
 
     void handleJsonCommand(const char* json) {
-        if (strstr(json, "\"cmd\":\"setDZ\"")) {
-            char pedal = ' ';
-            int low = 2, high = 2;
-            const char* pPtr = strstr(json, "\"p\":\"");
-            if (pPtr) pedal = pPtr[5];
-            const char* lowPtr = strstr(json, "\"low\":");
-            if (lowPtr) low = atoi(lowPtr + 6);
-            const char* highPtr = strstr(json, "\"high\":");
-            if (highPtr) high = atoi(highPtr + 7);
-            
-            if (pedal == 'g') { calibration.gasDZLow = (uint8_t)low; calibration.gasDZHigh = (uint8_t)high; }
-            else if (pedal == 'b') { calibration.brakeDZLow = (uint8_t)low; calibration.brakeDZHigh = (uint8_t)high; }
-            else if (pedal == 'c') { calibration.clutchDZLow = (uint8_t)low; calibration.clutchDZHigh = (uint8_t)high; }
-            saveCalibration();
-            sendJsonCalibration();
-        }
+        // No hay comandos JSON por ahora tras eliminar DZ
     }
 };
 
