@@ -579,14 +579,14 @@
       <div class="main-actions">
         <button
           id="connectSerialBtn"
-          class="btn btn-big btn-connect"
+          class="btn btn-big btn-connect offline-only"
           style="background: var(--primary); color: var(--bg)"
         >
           Connect USB (Serial)
         </button>
         <button
           id="connectBleBtn"
-          class="btn btn-big btn-connect"
+          class="btn btn-big btn-connect offline-only"
           style="background: var(--clutch); color: var(--bg)"
         >
           Connect Wireless (BLE)
@@ -625,6 +625,9 @@
           </div>
         </div>
         <button id="diagBtn" class="btn" disabled>Hardware Diagnostics</button>
+        <button id="connectBtn" class="btn btn-big btn-connect offline-only">
+          Connect Bluetooth
+        </button>
         <button id="monitorBtn" class="btn" disabled>
           Live Bridge Monitor
         </button>

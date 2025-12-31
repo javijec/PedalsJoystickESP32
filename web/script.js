@@ -27,6 +27,7 @@ const modalStepText = document.getElementById("modalStepText");
 const modalNextBtn = document.getElementById("modalNextBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
 const connectOnlyElements = document.querySelectorAll(".connect-only");
+const offlineOnlyElements = document.querySelectorAll(".offline-only");
 
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
@@ -95,8 +96,9 @@ function onConnected(text) {
   statusText.innerText = text;
   disconnectBtn.classList.add("active");
 
-  // Mostrar elementos que requieren conexión
+  // Mostrar elementos que requieren conexión y ocultar los de estado offline
   connectOnlyElements.forEach((el) => el.classList.remove("hidden"));
+  offlineOnlyElements.forEach((el) => el.classList.add("hidden"));
 
   setUIEnabled(true);
   appendLog("Connected via " + connectionMode.toUpperCase());
@@ -108,8 +110,9 @@ function onDisconnected() {
   statusText.innerText = "System Offline";
   disconnectBtn.classList.remove("active");
 
-  // Ocultar elementos
+  // Ocultar elementos de conexión y mostrar los de estado offline
   connectOnlyElements.forEach((el) => el.classList.add("hidden"));
+  offlineOnlyElements.forEach((el) => el.classList.remove("hidden"));
 
   setUIEnabled(false);
 }
@@ -126,8 +129,8 @@ function setUIEnabled(enabled) {
 
 async function readLoopSerial() {
   const textDecoder = new TextDecoderStream();
-  port.readable.pipeTo(textDecoder.writable);
-  const reader = textDecoder.readable.getReader();
+  const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+  reader = textDecoder.readable.getReader(); // Usar variable global
   let buffer = "";
 
   try {
@@ -137,7 +140,16 @@ async function readLoopSerial() {
       processData(value, buffer, (newBuf) => (buffer = newBuf));
     }
   } catch (e) {
-    appendLog("Read Error: " + e.message);
+    console.error("Read Loop Error:", e);
+    appendLog("Connection lost.");
+  } finally {
+    reader.releaseLock();
+    // Si sigue marcado como conectado (ej: cable desconectado), forzar desconexión UI
+    if (connectionMode === "serial") {
+      port = null;
+      connectionMode = null;
+      onDisconnected();
+    }
   }
 }
 
@@ -279,9 +291,23 @@ connectBleBtn.addEventListener("click", () => {
   connectBLE();
 });
 
-disconnectBtn.addEventListener("click", () => {
+disconnectBtn.addEventListener("click", async () => {
   if (connectionMode === "serial" && port) {
-    port.close();
+    if (reader) {
+      // Intentar cancelar el reader de forma segura
+      try {
+        await reader.cancel();
+        reader.releaseLock();
+      } catch (e) {
+        console.error("Error al cerrar reader:", e);
+      }
+      reader = null;
+    }
+    try {
+      await port.close();
+    } catch (e) {
+      console.error("Error al cerrar puerto:", e);
+    }
     port = null;
     connectionMode = null;
     onDisconnected();

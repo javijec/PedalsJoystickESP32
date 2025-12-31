@@ -24,6 +24,7 @@ const modalStepText = document.getElementById("modalStepText");
 const modalNextBtn = document.getElementById("modalNextBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
 const connectOnlyElements = document.querySelectorAll(".connect-only");
+const offlineOnlyElements = document.querySelectorAll(".offline-only");
 
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
@@ -72,8 +73,9 @@ async function connect() {
     statusText.innerText = "BLE CONNECTED";
     disconnectBtn.classList.add("active");
 
-    // Mostrar elementos que requieren conexión
+    // Mostrar elementos que requieren conexión y ocultar los de estado offline
     connectOnlyElements.forEach((el) => el.classList.remove("hidden"));
+    offlineOnlyElements.forEach((el) => el.classList.add("hidden"));
 
     setUIEnabled(true);
 
@@ -91,8 +93,9 @@ function onDisconnected() {
   statusText.innerText = "BLE OFFLINE";
   disconnectBtn.classList.remove("active");
 
-  // Ocultar elementos que requieren conexión
+  // Ocultar elementos de conexión y mostrar los de estado offline
   connectOnlyElements.forEach((el) => el.classList.add("hidden"));
+  offlineOnlyElements.forEach((el) => el.classList.remove("hidden"));
 
   setUIEnabled(false);
   appendLog("Disconnected from device.");
