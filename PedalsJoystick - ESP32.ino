@@ -127,11 +127,11 @@ private:
         while (Serial.available()) { Serial.read(); } 
         
         // Leer valor mínimo (pedal sin presionar)
-        if (strcmp(pedalName, "Freno") == 0) {
+        if (strcmp(pedalName, "FRENO") == 0) {
             float rawValue = brake_pedal.get_value();
             calib.min = (int16_t)rawValue;
         } else {
-            int pin = strcmp(pedalName, "Gas") == 0 ? Pin_Gas : Pin_Clutch;
+            int pin = (strcmp(pedalName, "GAS") == 0) ? Pin_Gas : Pin_Clutch;
             calib.min = analogRead(pin);
         }
         
@@ -145,7 +145,7 @@ private:
         while (Serial.available()) { Serial.read(); } 
         
         // Leer valor máximo (pedal presionado)
-        if (strcmp(pedalName, "Freno") == 0) {
+        if (strcmp(pedalName, "FRENO") == 0) {
             float maxValue = 0;
             Serial.println("Manteniendo presionado el freno, tomando muestras...");
             for(int i = 0; i < 20; i++) {
@@ -157,7 +157,7 @@ private:
             brake_scaling_factor = ADC_brake / calibration.brakeMaxForce;
             calib.max = ADC_brake;
         } else {
-            int pin = strcmp(pedalName, "Gas") == 0 ? Pin_Gas : Pin_Clutch;
+            int pin = (strcmp(pedalName, "GAS") == 0) ? Pin_Gas : Pin_Clutch;
             calib.max = analogRead(pin);
         }
     }

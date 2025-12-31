@@ -22,6 +22,8 @@ const calibModal = document.getElementById("calibModal");
 const modalPedalName = document.getElementById("modalPedalName");
 const modalStepText = document.getElementById("modalStepText");
 const modalNextBtn = document.getElementById("modalNextBtn");
+const disconnectBtn = document.getElementById("disconnectBtn");
+const connectOnlyElements = document.querySelectorAll(".connect-only");
 
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
@@ -68,7 +70,11 @@ async function connect() {
 
     statusDot.classList.add("connected");
     statusText.innerText = "BLE CONNECTED";
-    connectBtn.innerText = "DISCONNECT";
+    disconnectBtn.classList.add("active");
+
+    // Mostrar elementos que requieren conexión
+    connectOnlyElements.forEach((el) => el.classList.remove("hidden"));
+
     setUIEnabled(true);
 
     appendLog("Connected to PedalMaster!");
@@ -83,7 +89,11 @@ async function connect() {
 function onDisconnected() {
   statusDot.classList.remove("connected");
   statusText.innerText = "BLE OFFLINE";
-  connectBtn.innerText = "CONNECT BLUETOOTH";
+  disconnectBtn.classList.remove("active");
+
+  // Ocultar elementos que requieren conexión
+  connectOnlyElements.forEach((el) => el.classList.add("hidden"));
+
   setUIEnabled(false);
   appendLog("Disconnected from device.");
 }
@@ -195,13 +205,30 @@ function appendLog(msg) {
   div.innerText = `> ${msg}`;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
+
+  // Detectar instrucciones para el modal (Versión BLE)
+  if (calibModal.classList.contains("active")) {
+    if (msg.includes("No presiones") || msg.includes("SUELTA")) {
+      modalStepText.innerHTML =
+        '<span style="color: #ff5252; font-size: 1.3rem; font-weight: 900;">SUELTA EL PEDAL</span><br>y no lo toques';
+    } else if (msg.includes("completamente") || msg.includes("PISA")) {
+      modalStepText.innerHTML =
+        '<span style="color: var(--primary); font-size: 1.3rem; font-weight: 900;">PISE A FONDO</span><br>y mantenga la presión';
+    } else if (msg.includes("muestras")) {
+      modalStepText.innerHTML =
+        '<span style="color: #ffca28; font-size: 1.1rem; font-weight: 900;">TOMANDO MUESTRAS...</span>';
+    }
+  }
 }
 
 connectBtn.addEventListener("click", () => {
+  if (bleDevice && bleDevice.gatt.connected) return;
+  connect();
+});
+
+disconnectBtn.addEventListener("click", () => {
   if (bleDevice && bleDevice.gatt.connected) {
     bleDevice.gatt.disconnect();
-  } else {
-    connect();
   }
 });
 

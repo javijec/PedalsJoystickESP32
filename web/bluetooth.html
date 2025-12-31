@@ -111,6 +111,33 @@
         box-shadow: 0 0 10px var(--primary);
       }
 
+      .btn-disconnect {
+        background: rgba(255, 0, 60, 0.15);
+        color: #ff5252;
+        border: 1px solid rgba(255, 82, 82, 0.3);
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.65rem;
+        font-weight: 800;
+        cursor: pointer;
+        margin-left: 0.5rem;
+        transition: all 0.2s;
+        display: none;
+      }
+
+      .btn-disconnect.active {
+        display: inline-block;
+      }
+
+      .btn-disconnect:hover {
+        background: #ff5252;
+        color: #fff;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
       .dashboard {
         display: grid;
         grid-template-columns: 1fr;
@@ -368,12 +395,15 @@
         background: var(--primary);
         color: var(--bg);
         width: 100%;
-        padding: 1rem;
-        font-size: 0.9rem;
-        font-weight: 900;
+        padding: 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 800;
         border: none;
-        border-radius: 1rem;
+        border-radius: 1.25rem;
         cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 1rem;
       }
       .modal-hint {
         margin-top: 1rem;
@@ -389,6 +419,7 @@
         <div class="status-pill">
           <div id="statusDot" class="status-dot"></div>
           <span id="statusText">BLE Offline</span>
+          <button id="disconnectBtn" class="btn-disconnect">DISCONNECT</button>
         </div>
       </header>
 
@@ -409,7 +440,7 @@
             </div>
           </div>
           <button
-            class="btn"
+            class="btn connect-only hidden"
             style="border-color: rgba(0, 255, 163, 0.3); color: var(--primary)"
             onclick="calibrateIndividual('g')"
           >
@@ -435,7 +466,7 @@
             </div>
           </div>
           <button
-            class="btn"
+            class="btn connect-only hidden"
             style="border-color: rgba(255, 0, 60, 0.3); color: var(--brake)"
             onclick="calibrateIndividual('b')"
           >
@@ -461,7 +492,7 @@
             </div>
           </div>
           <button
-            class="btn"
+            class="btn connect-only hidden"
             style="border-color: rgba(0, 209, 255, 0.3); color: var(--clutch)"
             onclick="calibrateIndividual('c')"
           >
@@ -474,10 +505,12 @@
         <button id="connectBtn" class="btn btn-big btn-connect">
           Connect Bluetooth
         </button>
-        <button id="calibBtn" class="btn btn-big" disabled>Calibration</button>
+        <button id="calibBtn" class="btn btn-big connect-only hidden" disabled>
+          Calibration
+        </button>
         <button
           id="advancedToggle"
-          class="btn btn-big"
+          class="btn btn-big connect-only hidden"
           style="opacity: 0.5"
           disabled
         >
@@ -485,7 +518,7 @@
         </button>
       </div>
 
-      <div id="advancedSection" class="advanced-panel">
+      <div id="advancedSection" class="advanced-panel hidden">
         <div
           style="
             grid-column: 1 / -1;

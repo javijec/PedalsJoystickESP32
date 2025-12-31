@@ -25,6 +25,8 @@ const calibModal = document.getElementById("calibModal");
 const modalPedalName = document.getElementById("modalPedalName");
 const modalStepText = document.getElementById("modalStepText");
 const modalNextBtn = document.getElementById("modalNextBtn");
+const disconnectBtn = document.getElementById("disconnectBtn");
+const connectOnlyElements = document.querySelectorAll(".connect-only");
 
 const gasBar = document.getElementById("gasBar");
 const brakeBar = document.getElementById("brakeBar");
@@ -91,15 +93,25 @@ async function connectBLE() {
 function onConnected(text) {
   statusDot.classList.add("connected");
   statusText.innerText = text;
-  connectSerialBtn.innerText = "DISCONNECT";
-  connectBleBtn.innerText = "DISCONNECT";
+  disconnectBtn.classList.add("active");
+
+  // Mostrar elementos que requieren conexión
+  connectOnlyElements.forEach((el) => el.classList.remove("hidden"));
+
   setUIEnabled(true);
   appendLog("Connected via " + connectionMode.toUpperCase());
 }
 
 function onDisconnected() {
   appendLog("Disconnected.");
-  window.location.reload();
+  statusDot.classList.remove("connected");
+  statusText.innerText = "System Offline";
+  disconnectBtn.classList.remove("active");
+
+  // Ocultar elementos
+  connectOnlyElements.forEach((el) => el.classList.add("hidden"));
+
+  setUIEnabled(false);
 }
 
 function setUIEnabled(enabled) {
@@ -239,23 +251,42 @@ function appendLog(msg) {
   div.innerText = `> ${msg}`;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
+
+  // Detectar instrucciones para el modal
+  if (calibModal.classList.contains("active")) {
+    if (msg.includes("No presiones") || msg.includes("SUELTA")) {
+      modalStepText.innerHTML =
+        '<span style="color: var(--brake); font-size: 1.5rem; font-weight: 900;">SUELTA EL PEDAL</span><br>y no lo toques';
+    } else if (msg.includes("completamente") || msg.includes("PISA")) {
+      modalStepText.innerHTML =
+        '<span style="color: var(--primary); font-size: 1.5rem; font-weight: 900;">PISE A FONDO</span><br>y mantenga la presión';
+    } else if (msg.includes("muestras")) {
+      modalStepText.innerHTML =
+        '<span style="color: #ffca28; font-size: 1.2rem; font-weight: 900;">TOMANDO MUESTRAS...</span><br>No sueltes todavía';
+    }
+  }
 }
 
 // --- Event Listeners ---
 
-connectSerialBtn.addEventListener("click", async () => {
-  if (connectionMode) {
-    onDisconnected();
-  } else {
-    connectSerial();
-  }
+connectSerialBtn.addEventListener("click", () => {
+  if (connectionMode === "serial") return;
+  connectSerial();
 });
 
-connectBleBtn.addEventListener("click", async () => {
-  if (connectionMode) {
+connectBleBtn.addEventListener("click", () => {
+  if (connectionMode === "ble") return;
+  connectBLE();
+});
+
+disconnectBtn.addEventListener("click", () => {
+  if (connectionMode === "serial" && port) {
+    port.close();
+    port = null;
+    connectionMode = null;
     onDisconnected();
-  } else {
-    connectBLE();
+  } else if (connectionMode === "ble" && bleDevice) {
+    bleDevice.gatt.disconnect();
   }
 });
 
